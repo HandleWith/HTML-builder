@@ -4,7 +4,7 @@ const path = require('path/posix');
 const stylePath = path.join('05-merge-styles', 'styles')
 const mergePath = path.join('05-merge-styles', 'project-dist', 'bundle.css')
 
-async function mergeStyle() {
+async function mergeStyle(stylePath, mergePath) {
     fs.readdir(stylePath, {withFileTypes: true}, (err, data) => {
         let result = []
         if(err) throw err
@@ -16,11 +16,26 @@ async function mergeStyle() {
                 createFile(result)
             }))
         async function createFile(data) {
-            fs.writeFile(mergePath, data.join(''), (err) => {
+            fs.stat(mergePath, (err) => {
+                if(!err) {
+                    rmFile().then(
+                        fs.writeFile(mergePath, data.join('\n'), (err) => {
+                            if(err) throw err
+                        })
+                    )
+                }
+                else if(err.code === 'ENOENT')
+                    fs.writeFile(mergePath, data.join(''), (err) => {
+                        if(err) throw err
+                    })
+            })
+        }
+        async function rmFile() {
+            fs.writeFile(mergePath, '', (err) => {
                 if(err) throw err
             })
         }
     })
 }
 
-mergeStyle()
+mergeStyle(stylePath, mergePath)

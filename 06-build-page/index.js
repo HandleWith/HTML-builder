@@ -46,12 +46,15 @@ async function createHTML(pairs) {
 
 const stylePath = path.join('06-build-page', 'styles')
 const mergePath = path.join('06-build-page', 'project-dist', 'style.css')
+const targetDirectory = path.join('06-build-page', 'project-dist', 'assets')
+const sourceDirectory = path.join('06-build-page', 'assets')
 
-async function mergeStyle() {
+async function mergeStyle(stylePath, mergePath) {
     fs.readdir(stylePath, {withFileTypes: true}, (err, data) => {
         let result = []
         if(err) throw err
         let styles = data.filter(el => path.extname(el.name) === '.css' && el.isFile())
+        console.log(data.name)
         styles.forEach(el => 
             fs.readFile(path.join(stylePath, el.name), 'utf-8', (err, data) => {
                 if(err) throw err
@@ -59,49 +62,81 @@ async function mergeStyle() {
                 createFile(result)
             }))
         async function createFile(data) {
-            fs.writeFile(mergePath, data.join(''), (err) => {
+            fs.stat(mergePath, (err) => {
+                if(!err) {
+                    rmFile().then(
+                        fs.writeFile(mergePath, data.join('\n'), (err) => {
+                            if(err) throw err
+                        })
+                    )
+                }
+                else if(err.code === 'ENOENT')
+                    fs.writeFile(mergePath, data.join(''), (err) => {
+                        if(err) throw err
+                    })
+            })
+        }
+        async function rmFile() {
+            fs.writeFile(mergePath, '', (err) => {
                 if(err) throw err
             })
         }
     })
 }
 
-mergeStyle()
-
-const targetDirectory = path.join('06-build-page', 'project-dist', 'assets')
-const sourceDirectory = path.join('06-build-page', 'assets')
+mergeStyle(stylePath, mergePath)
 
 async function copyDir(sourceDirectory, targetDirectory) {
-    fs.mkdir(targetDirectory, { recursive: true }, (err) => {
-        if(err) throw err
-        console.log('folder has been created')
+    fs.stat(targetDirectory, (err) => {
+        if(!err) {
+            rmFiles(targetDirectory).then(create())
+        }
+        else if(err.code === 'ENOENT')
+            create()
     })
-    
-    fs.readdir(sourceDirectory, {withFileTypes: true}, (err, files) => {
-        if(err) throw err  
+
+    async function rmFiles(targetDirectory) {
+        let files = await fsPromises.readdir(targetDirectory, {withFileTypes:true})
         files.forEach(el => {
-            fs.stat(path.join(sourceDirectory, el.name), (err, data) => {
-                if(!data.isDirectory()) {
-                    fsPromises.copyFile(path.join(sourceDirectory, el.name), path.join(targetDirectory, el.name))
-                }
-                else {
-                    fs.mkdir(path.join(targetDirectory, el.name), {recursive:true}, (err, data) => {
-                        if(err) throw err
-                    })
-                    fs.readdir(path.join(sourceDirectory, el.name), (err, files) => {
-                        if(err) throw err
-                        files.forEach(item => 
-                            fsPromises.copyFile(path.join(sourceDirectory, el.name, item), path.join(targetDirectory, el.name, item)))
-                    })
-                }
-                console.log('Files copied')
+            if(el.isFile()) {
+                fs.unlink(path.join(targetDirectory, el.name), (err) => {
+                    if(err) throw err
+                })
+            }
+            else {
+                rmFiles(path.join(targetDirectory, el.name))
+            }
+        })
+    }
+
+    async function create() {
+        fs.mkdir(targetDirectory, { recursive: true }, (err) => {
+            if(err) throw err
+            console.log('folder has been created')
+        })
+        
+        fs.readdir(sourceDirectory, {withFileTypes: true}, (err, files) => {
+            if(err) throw err 
+            files.forEach(el => {
+                fs.stat(path.join(sourceDirectory, el.name), (err, data) => {
+                    if(!data.isDirectory()) {
+                        fsPromises.copyFile(path.join(sourceDirectory, el.name), path.join(targetDirectory, el.name))
+                    }
+                    else {
+                        fs.mkdir(path.join(targetDirectory, el.name), {recursive:true}, (err, data) => {
+                            if(err) throw err
+                        })
+                        fs.readdir(path.join(sourceDirectory, el.name), (err, files) => {
+                            if(err) throw err
+                            files.forEach(item => 
+                                fsPromises.copyFile(path.join(sourceDirectory, el.name, item), path.join(targetDirectory, el.name, item)))
+                        })
+                    }
+                    console.log('Files copied')
+                })
             })
         })
-    })
+    }
 }
 
 copyDir(sourceDirectory, targetDirectory)
-
-
-
-
